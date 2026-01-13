@@ -21,10 +21,12 @@ This is a **single-file Python script** (simplifi-export-to-import.py) with no e
 
 The script performs:
 1. Case-insensitive column mapping from Simplifi export format to import format
-2. Date conversion: `YYYY-MM-DD` → `M/D/YY`
-3. Amount cleaning: removes `$` and `,` characters
-4. Addition of required `Check_No` column (empty)
-5. Removal of unused export columns (account, state, usage, action, security, etc.)
+2. Date format preservation: maintains `M/D/YYYY` format (4-digit years, despite docs stating M/D/YY)
+3. Category format transformation: strips parent from `Parent:Child` → `Child` (e.g., `Auto & Transport:Gas & Fuel` → `Gas & Fuel`)
+4. Amount cleaning: removes `$` and `,` characters
+5. Addition of required `Check_No` column (empty)
+6. Proper CSV quoting: uses `csv.QUOTE_ALL` to ensure all fields are quoted
+7. Removal of unused export columns (account, state, usage, action, security, etc.)
 
 ## CSV Format Mapping
 
@@ -36,7 +38,18 @@ The script performs:
 
 The script is case-insensitive for input column names but enforces exact case for output columns.
 
+## Critical Implementation Details
+
+**Simplifi's official documentation is incorrect/misleading.** Key discoveries:
+
+1. **Date format**: Official docs state `M/D/YY` (2-digit year) but actual imports require `M/D/YYYY` (4-digit year)
+2. **Category format**: Exports contain `Parent:Child` format but imports only accept child names
+3. **CSV quoting**: Must use `csv.QUOTE_ALL` - all fields must be quoted for reliable import
+4. **Line endings**: Standard Unix `\n` line endings (though this seems less critical)
+
 ## Known Limitations
 
 - Splits and transfers may not import correctly (Simplifi limitation)
 - Recurring Transaction Series cannot be imported via CSV (Simplifi does not include them in exports)
+- Categories must already exist in Simplifi to import successfully
+- Import does not update existing transactions - only creates new ones
