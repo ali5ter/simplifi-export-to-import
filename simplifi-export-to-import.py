@@ -13,15 +13,24 @@ from pathlib import Path
 
 
 def convert_date(date_str):
-    """Convert YYYY-MM-DD to M/D/YY"""
+    """Convert date to M/D/YYYY format
+
+    Despite documentation saying M/D/YY, the official Simplifi template
+    uses M/D/YYYY (4-digit year), so we preserve that format.
+    """
     if not date_str:
         return ""
-    try:
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
-        return f"{dt.month}/{dt.day}/{dt.year % 100}"
-    except ValueError:
-        # If parsing fails, return as-is
-        return date_str
+
+    # Try parsing various date formats and output as M/D/YYYY
+    for fmt in ["%m/%d/%Y", "%-m/%-d/%Y", "%Y-%m-%d"]:
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return f"{dt.month}/{dt.day}/{dt.year}"
+        except ValueError:
+            continue
+
+    # If all parsing fails, return as-is
+    return date_str
 
 
 def format_amount(amount_str):
@@ -29,6 +38,20 @@ def format_amount(amount_str):
     if not amount_str:
         return ""
     return amount_str.replace('$', '').replace(',', '').strip()
+
+
+def format_category(category_str):
+    """Extract child category from parent:child format
+
+    Simplifi exports categories as 'Parent:Child' but requires
+    only the child name for import (e.g., 'Gas & Fuel' not 'Auto & Transport:Gas & Fuel')
+    """
+    if not category_str:
+        return ""
+    # If there's a colon, take everything after it
+    if ':' in category_str:
+        return category_str.split(':', 1)[1].strip()
+    return category_str.strip()
 
 
 def main():
@@ -77,8 +100,8 @@ def main():
                 print(f"Error: Missing required columns: {', '.join(missing)}", file=sys.stderr)
                 sys.exit(1)
 
-            # Write output
-            writer = csv.DictWriter(outfile, fieldnames=['Date', 'Payee', 'Amount', 'Category', 'Tags', 'Notes', 'Check_No'])
+            # Write output with proper quoting for all fields
+            writer = csv.DictWriter(outfile, fieldnames=['Date', 'Payee', 'Amount', 'Category', 'Tags', 'Notes', 'Check_No'], quoting=csv.QUOTE_ALL)
             writer.writeheader()
 
             for row in reader:
@@ -89,7 +112,7 @@ def main():
                     'Date': convert_date(row_lower.get('postedon', '')),
                     'Payee': row_lower.get('payee', ''),
                     'Amount': format_amount(row_lower.get('amount', '')),
-                    'Category': row_lower.get('category', ''),
+                    'Category': format_category(row_lower.get('category', '')),
                     'Tags': row_lower.get('tags', ''),
                     'Notes': row_lower.get('notes', ''),
                     'Check_No': ''
